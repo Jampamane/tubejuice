@@ -2,7 +2,6 @@ import asyncio
 import json
 import re
 import shutil
-import subprocess
 import tempfile
 import uuid
 from datetime import datetime
@@ -10,9 +9,23 @@ from pathlib import Path
 from typing import Optional
 
 import yt_dlp
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from mutagen.oggvorbis import OggVorbis
+from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
+from mutagen.id3 import (
+    ID3,
+    TIT2,
+    TPE1,
+    TALB,
+    TRCK,
+    TDRC,
+    TPE2,
+    error as ID3Error,
+)
 
 app = FastAPI(title="TubeJuice")
 
@@ -52,7 +65,7 @@ class DownloadRequest(BaseModel):
     artist: str
     album: str
     year: Optional[str] = None
-    tag_method: str = "mutagen"   # "mutagen" or "none"
+    tag_method: str = "mutagen"  # "mutagen" or "none"
     audio_format: str = "mp3"
     audio_quality: str = "320"
 
@@ -66,20 +79,25 @@ def update_job(job_id: str, **kwargs):
 
 def _sanitize(name: str) -> str:
     """Make a string safe for use as a directory/file name."""
-    name = re.sub(r'[<>:"/\\|?*]', '', name)
-    name = re.sub(r'\s+', ' ', name).strip()
-    name = name.rstrip('. ')
+    name = re.sub(r'[<>:"/\\|?*]', "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    name = name.rstrip(". ")
     return name or "Unknown"
 
 
-def _tag_file(path: Path, artist: str, album: str, title: str,
-              track_num: Optional[int], total_tracks: Optional[int],
-              year: Optional[str]):
+def _tag_file(
+    path: Path,
+    artist: str,
+    album: str,
+    title: str,
+    track_num: Optional[int],
+    total_tracks: Optional[int],
+    year: Optional[str],
+):
     """Write tags using mutagen based on file extension."""
     ext = path.suffix.lower()
 
     if ext == ".mp3":
-        from mutagen.id3 import ID3, TIT2, TPE1, TALB, TRCK, TDRC, TPE2, error as ID3Error
         try:
             tags = ID3(path)
         except ID3Error:
@@ -89,14 +107,15 @@ def _tag_file(path: Path, artist: str, album: str, title: str,
         tags["TPE2"] = TPE2(encoding=3, text=artist)
         tags["TALB"] = TALB(encoding=3, text=album)
         if track_num:
-            track_str = f"{track_num}/{total_tracks}" if total_tracks else str(track_num)
+            track_str = (
+                f"{track_num}/{total_tracks}" if total_tracks else str(track_num)
+            )
             tags["TRCK"] = TRCK(encoding=3, text=track_str)
         if year:
             tags["TDRC"] = TDRC(encoding=3, text=year)
         tags.save(path)
 
     elif ext == ".flac":
-        from mutagen.flac import FLAC
         tags = FLAC(path)
         tags["title"] = title
         tags["artist"] = artist
@@ -111,7 +130,6 @@ def _tag_file(path: Path, artist: str, album: str, title: str,
         tags.save()
 
     elif ext in (".m4a", ".mp4", ".aac"):
-        from mutagen.mp4 import MP4
         tags = MP4(path)
         tags["\xa9nam"] = title
         tags["\xa9ART"] = artist
@@ -124,7 +142,6 @@ def _tag_file(path: Path, artist: str, album: str, title: str,
         tags.save()
 
     elif ext in (".opus", ".ogg"):
-        from mutagen.oggvorbis import OggVorbis
         try:
             tags = OggVorbis(path)
         except Exception:
@@ -147,15 +164,22 @@ def _infer_title_from_filename(filename: str) -> tuple[Optional[int], str]:
       'Some Song Title.mp3'      ->  (None, 'Some Song Title')
     """
     stem = Path(filename).stem
-    m = re.match(r'^(\d+)\s*[-–.]\s*(.+)$', stem)
+    m = re.match(r"^(\d+)\s*[-–.]\s*(.+)$", stem)
     if m:
         return int(m.group(1)), m.group(2).strip()
     return None, stem.strip()
 
 
-async def run_download(job_id: str, url: str, artist: str, album: str,
-                       year: Optional[str], audio_format: str,
-                       audio_quality: str, tag_method: str):
+async def run_download(
+    job_id: str,
+    url: str,
+    artist: str,
+    album: str,
+    year: Optional[str],
+    audio_format: str,
+    audio_quality: str,
+    tag_method: str,
+):
     tmp_dir = tempfile.mkdtemp(prefix=f"tubejuice_{job_id}_", dir=DOWNLOADS_DIR)
     log_lines = []
 
@@ -166,15 +190,19 @@ async def run_download(job_id: str, url: str, artist: str, album: str,
         save_jobs()
 
     artist_safe = _sanitize(artist)
-    album_safe  = _sanitize(album)
-    album_dir   = MUSIC_DIR / artist_safe / album_safe
+    album_safe = _sanitize(album)
+    album_dir = MUSIC_DIR / artist_safe / album_safe
 
     try:
         # ── Step 1: Probe metadata ─────────────────────────────────────────
         update_job(job_id, status="probing", progress=5)
         log("🔍 Fetching playlist info...")
 
-        ydl_opts_info = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist"}
+        ydl_opts_info = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": "in_playlist",
+        }
         with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
             info = await asyncio.to_thread(ydl.extract_info, url, download=False)
 
@@ -190,13 +218,18 @@ async def run_download(job_id: str, url: str, artist: str, album: str,
         # ── Collision check ────────────────────────────────────────────────
         if album_dir.exists():
             raise FileExistsError(
-                f'Album folder already exists: {artist_safe}/{album_safe} — '
-                f'delete it first to re-download.'
+                f"Album folder already exists: {artist_safe}/{album_safe} — "
+                f"delete it first to re-download."
             )
 
         album_dir.mkdir(parents=True, exist_ok=False)
-        update_job(job_id, track_count=track_count, artist=artist_safe,
-                   album=album_safe, progress=10)
+        update_job(
+            job_id,
+            track_count=track_count,
+            artist=artist_safe,
+            album=album_safe,
+            progress=10,
+        )
 
         # ── Step 2: Download audio ─────────────────────────────────────────
         update_job(job_id, status="downloading", progress=15)
@@ -240,7 +273,7 @@ async def run_download(job_id: str, url: str, artist: str, album: str,
         audio_exts = {".mp3", ".flac", ".m4a", ".opus", ".ogg", ".wav"}
         audio_files = sorted(
             [f for f in Path(tmp_dir).rglob("*") if f.suffix.lower() in audio_exts],
-            key=lambda f: f.name
+            key=lambda f: f.name,
         )
         total = len(audio_files)
 
@@ -253,8 +286,15 @@ async def run_download(job_id: str, url: str, artist: str, album: str,
                 track_num = track_num or i
 
                 try:
-                    _tag_file(src, artist=artist, album=album, title=title,
-                              track_num=track_num, total_tracks=total, year=year)
+                    _tag_file(
+                        src,
+                        artist=artist,
+                        album=album,
+                        title=title,
+                        track_num=track_num,
+                        total_tracks=total,
+                        year=year,
+                    )
                     log(f"  🏷 {track_num:02d}. {title}")
                 except Exception as e:
                     log(f"  ⚠️  Tag failed for {src.name}: {e}")
@@ -323,10 +363,18 @@ async def start_download(req: DownloadRequest):
         "year": req.year,
     }
     save_jobs()
-    asyncio.create_task(run_download(
-        job_id, req.url, req.artist, req.album,
-        req.year, req.audio_format, req.audio_quality, req.tag_method
-    ))
+    asyncio.create_task(
+        run_download(
+            job_id,
+            req.url,
+            req.artist,
+            req.album,
+            req.year,
+            req.audio_format,
+            req.audio_quality,
+            req.tag_method,
+        )
+    )
     return {"job_id": job_id}
 
 
@@ -355,17 +403,26 @@ async def delete_job(job_id: str):
 async def list_music():
     files = []
     for f in MUSIC_DIR.rglob("*"):
-        if f.is_file() and f.suffix.lower() in {".mp3", ".flac", ".m4a", ".opus", ".wav", ".ogg"}:
-            files.append({
-                "name": f.name,
-                "path": str(f.relative_to(MUSIC_DIR)),
-                "size_mb": round(f.stat().st_size / 1_048_576, 2),
-            })
+        if f.is_file() and f.suffix.lower() in {
+            ".mp3",
+            ".flac",
+            ".m4a",
+            ".opus",
+            ".wav",
+            ".ogg",
+        }:
+            files.append(
+                {
+                    "name": f.name,
+                    "path": str(f.relative_to(MUSIC_DIR)),
+                    "size_mb": round(f.stat().st_size / 1_048_576, 2),
+                }
+            )
     return sorted(files, key=lambda x: x["path"])
 
 
 def run():
-    import uvicorn
+
     uvicorn.run("tubejuice.main:app", host="0.0.0.0", port=8765, reload=True)
 
 
