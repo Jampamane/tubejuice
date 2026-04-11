@@ -1,1 +1,1 @@
-from .main import run as main
+from .main import run as run

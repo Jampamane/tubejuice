@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tubejuice = "tubejuice:main"
+tubejuice = "tubejuice:run"
 
 [build-system]
 requires = ["hatchling"]
