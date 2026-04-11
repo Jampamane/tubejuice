@@ -1,0 +1,42 @@
+directory: {music_dir}
+library: {music_dir}/beets_library.db
+
+import:
+  move: yes
+  write: yes
+  log: {music_dir}/beets_import.log
+  timid: no
+  quiet: yes
+  autotag: yes
+
+match:
+  strong_rec_thresh: 0.10
+  medium_rec_thresh: 0.25
+  rec_gap_thresh: 0.25
+
+plugins:
+  - fetchart
+  - embedart
+  - lyrics
+  - lastgenre
+  - mbsync
+
+musicbrainz:
+  searchlimit: 10
+
+fetchart:
+  auto: yes
+  sources: filesystem coverart itunes amazon albumart
+
+embedart:
+  auto: yes
+  ifempty: yes
+
+lastgenre:
+  auto: yes
+  source: album
+
+paths:
+  default: $albumartist/$album%aunique{}/$track $title
+  singleton: Non-Album/$artist/$title
+  comp: Compilations/$album%aunique{}/$track $title

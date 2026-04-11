@@ -1,0 +1,36 @@
+{
+  "924b71e4": {
+    "id": "924b71e4",
+    "url": "https://music.youtube.com/playlist?list=OLAK5uy_mRd99_nASJFzjS8Cb3t7IM8fzibJIlKl0",
+    "status": "done",
+    "progress": 100,
+    "title": "Album - 5 Seconds Of Summer",
+    "track_count": 12,
+    "log": [
+      "\ud83d\udd0d Fetching playlist/album info...",
+      "\ud83d\udcc0 Found: Album - 5 Seconds Of Summer (12 tracks)",
+      "\u2b07\ufe0f  Downloading 12 tracks as MP3...",
+      "  \u2713 01 - She Looks So Perfect.webm",
+      "  \u2713 02 - Don't Stop.webm",
+      "  \u2713 03 - Good Girls.webm",
+      "  \u2713 04 - Kiss Me Kiss Me.webm",
+      "  \u2713 05 - 18.webm",
+      "  \u2713 06 - Everything I Didn't Say.webm",
+      "  \u2713 07 - Beside You.webm",
+      "  \u2713 08 - End Up Here.webm",
+      "  \u2713 09 - Long Way Home.webm",
+      "  \u2713 10 - Heartbreak Girl.webm",
+      "  \u2713 11 - English Love Affair.webm",
+      "  \u2713 12 - Amnesia.webm",
+      "\u2705 Downloads complete.",
+      "\u23ed\ufe0f  Skipping auto-tag (none selected).",
+      "  Moved 12 audio file(s) to /home/jeremy/Scripts/tube-juice/music",
+      "\ud83c\udf89 All done! Music saved to: /home/jeremy/Scripts/tube-juice/music"
+    ],
+    "error": null,
+    "created_at": "2026-04-11T08:12:58.628554",
+    "updated_at": "2026-04-11T08:14:16.365915",
+    "tag_method": "none",
+    "audio_format": "mp3"
+  }
+}
