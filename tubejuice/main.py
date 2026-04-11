@@ -1,19 +1,15 @@
 import asyncio
 import json
-import os
 import shutil
 import subprocess
 import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
-import aiofiles
 import yt_dlp
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="TubeJuice")
@@ -99,7 +95,9 @@ paths:
     return str(config_out)
 
 
-async def run_download(job_id: str, url: str, audio_format: str, audio_quality: str, tag_method: str):
+async def run_download(
+    job_id: str, url: str, audio_format: str, audio_quality: str, tag_method: str
+):
     tmp_dir = tempfile.mkdtemp(prefix=f"tubejuice_{job_id}_", dir=DOWNLOADS_DIR)
     log_lines = []
 
@@ -114,7 +112,11 @@ async def run_download(job_id: str, url: str, audio_format: str, audio_quality: 
         update_job(job_id, status="probing", progress=5)
         log("🔍 Fetching playlist/album info...")
 
-        ydl_opts_info = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist"}
+        ydl_opts_info = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": "in_playlist",
+        }
         with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
             info = await asyncio.to_thread(ydl.extract_info, url, download=False)
 
@@ -130,11 +132,13 @@ async def run_download(job_id: str, url: str, audio_format: str, audio_quality: 
 
         postprocessors = []
         if audio_format in ("mp3", "m4a", "flac", "opus", "wav"):
-            postprocessors.append({
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": audio_format,
-                "preferredquality": audio_quality if audio_format == "mp3" else "0",
-            })
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": audio_format,
+                    "preferredquality": audio_quality if audio_format == "mp3" else "0",
+                }
+            )
         postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
         postprocessors.append({"key": "EmbedThumbnail"})
 
@@ -160,7 +164,7 @@ async def run_download(job_id: str, url: str, audio_format: str, audio_quality: 
         }
 
         await asyncio.to_thread(lambda: yt_dlp.YoutubeDL(ydl_opts_dl).download([url]))
-        log(f"✅ Downloads complete.")
+        log("✅ Downloads complete.")
 
         # ── Step 3: Tag with beets ─────────────────────────────────────────
         if tag_method == "beets":
@@ -169,16 +173,22 @@ async def run_download(job_id: str, url: str, audio_format: str, audio_quality: 
 
             config_path = build_beets_config(str(MUSIC_DIR), tmp_dir)
             beet_cmd = [
-                "beet", "-c", config_path,
-                "import", "-q", "--nowrite" if False else "-w",
-                tmp_dir
+                "beet",
+                "-c",
+                config_path,
+                "import",
+                "-q",
+                "--nowrite" if False else "-w",
+                tmp_dir,
             ]
 
             try:
                 proc = await asyncio.to_thread(
                     subprocess.run,
                     beet_cmd,
-                    capture_output=True, text=True, timeout=300
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
                 )
                 if proc.stdout:
                     for line in proc.stdout.strip().splitlines():
@@ -187,7 +197,9 @@ async def run_download(job_id: str, url: str, audio_format: str, audio_quality: 
                     log(f"  ⚠️  beets warnings: {proc.stderr[:500]}")
                 log("✅ Tagging complete.")
             except FileNotFoundError:
-                log("⚠️  beets not found in PATH — skipping auto-tag. Install with: pip install beets")
+                log(
+                    "⚠️  beets not found in PATH — skipping auto-tag. Install with: pip install beets"
+                )
                 # Fall through: move files anyway
                 _move_untagged(tmp_dir, str(MUSIC_DIR), log)
             except subprocess.TimeoutExpired:
@@ -216,7 +228,14 @@ def _move_untagged(src_dir: str, dest_dir: str, log):
     """Move downloaded files to music dir without beets tagging."""
     moved = 0
     for f in Path(src_dir).rglob("*"):
-        if f.is_file() and f.suffix.lower() in (".mp3", ".flac", ".m4a", ".opus", ".wav", ".ogg"):
+        if f.is_file() and f.suffix.lower() in (
+            ".mp3",
+            ".flac",
+            ".m4a",
+            ".opus",
+            ".wav",
+            ".ogg",
+        ):
             dest = Path(dest_dir) / f.name
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(f), str(dest))
@@ -251,9 +270,11 @@ async def start_download(req: DownloadRequest):
         "audio_format": req.audio_format,
     }
     save_jobs()
-    asyncio.create_task(run_download(
-        job_id, req.url, req.audio_format, req.audio_quality, req.tag_method
-    ))
+    asyncio.create_task(
+        run_download(
+            job_id, req.url, req.audio_format, req.audio_quality, req.tag_method
+        )
+    )
     return {"job_id": job_id}
 
 
@@ -283,17 +304,27 @@ async def list_music():
     """List all music files in the output directory."""
     files = []
     for f in MUSIC_DIR.rglob("*"):
-        if f.is_file() and f.suffix.lower() in (".mp3", ".flac", ".m4a", ".opus", ".wav", ".ogg"):
-            files.append({
-                "name": f.name,
-                "path": str(f.relative_to(MUSIC_DIR)),
-                "size_mb": round(f.stat().st_size / 1_048_576, 2),
-            })
+        if f.is_file() and f.suffix.lower() in (
+            ".mp3",
+            ".flac",
+            ".m4a",
+            ".opus",
+            ".wav",
+            ".ogg",
+        ):
+            files.append(
+                {
+                    "name": f.name,
+                    "path": str(f.relative_to(MUSIC_DIR)),
+                    "size_mb": round(f.stat().st_size / 1_048_576, 2),
+                }
+            )
     return sorted(files, key=lambda x: x["path"])
 
 
 def run():
     import uvicorn
+
     uvicorn.run("tubejuice.main:app", host="0.0.0.0", port=8765, reload=True)
 
 
