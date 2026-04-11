@@ -1,0 +1,25 @@
+services:
+  tubejuice:
+    image: ghcr.io/${GITHUB_USER}/tubejuice:latest
+    # Or build locally:
+    # build: .
+    container_name: tubejuice
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      # Music library persists outside the container
+      - ./music:/app/music
+      # Temp download staging area
+      - ./downloads:/app/downloads
+      # Job history survives restarts
+      - ./jobs.json:/app/jobs.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8765/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

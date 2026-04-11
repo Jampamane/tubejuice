@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Runtime data — don't bake music/downloads into the image
+music/
+downloads/
+jobs.json
+
+# Dev/editor noise
+.git/
+.gitignore
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Docs
+README.md
