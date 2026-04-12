@@ -1,6 +1,6 @@
 services:
   tubejuice:
-    image: ghcr.io/${GITHUB_USER}/tubejuice:latest
+    image: ghcr.io/jampamane/tubejuice:latest
     # Or build locally:
     # build: .
     container_name: tubejuice

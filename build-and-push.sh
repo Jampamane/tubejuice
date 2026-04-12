@@ -84,6 +84,7 @@ docker run --rm \
     --dockerfile="/workspace/Dockerfile" \
     --destination="${FULL_IMAGE}:${TAG}" \
     --destination="${FULL_IMAGE}:latest" \
+    --platform=linux/arm64 \
     --cache=true \
     --cache-ttl=24h \
     --compressed-caching=false \

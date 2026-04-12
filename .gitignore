@@ -2,3 +2,4 @@ __pycache__
 music/
 downloads/
 jobs.json
+secrets.txt
