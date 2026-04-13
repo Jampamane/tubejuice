@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
+# Create the jeremy user and group, with a home directory
+RUN groupadd --gid 1000 jeremy \
+ && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash jeremy
+
 WORKDIR /app
 
 # Copy project files
@@ -20,6 +24,13 @@ COPY beets_config.yaml.template .
 
 # Install dependencies and project with uv into the system Python
 RUN uv tool install .
+
+# Create data dirs and give jeremy ownership before switching user
+RUN mkdir -p /app/music /app/downloads \
+ && chown -R jeremy:jeremy /app
+
+# Switch to jeremy for all subsequent commands and at runtime
+USER jeremy
 
 # Persistent data volumes
 VOLUME ["/app/music", "/app/downloads"]
